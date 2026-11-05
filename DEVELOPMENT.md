@@ -30,13 +30,16 @@
 
 ```
 upstream/main   ←  只镜像官方 milind-soni/OpenMausBot，永远 clean
-      │
-   main         ←  本仓库主线，所有自定义改动都在这条线，基于 upstream rebase
+      │  (rebase)
+    main        ←  集成分支，只接收上游更新，自己不写代码
+      │  (切分支)
+  feat/xxx      ←  所有实际开发都在 feature 分支上做
 ```
 
 - `upstream` remote 指向 `https://github.com/milind-soni/OpenMausBot.git`。
+- `main` = 纯同步线，`feat/*` = 开发线。一个需求一条分支，做完合回 main。
 - 同步用 **rebase**，不用 merge：让自定义改动保持线性，官方更新直接「垫底」，冲突集中处理一次。
-- 开启 `git rerere`，让 git 记住反复解决的同类冲突，rebase 时自动重放。
+- **`git rerere` 已开启**，rebase 时自动重放曾解决过的同类冲突。
 
 ## 4. 改动分层（从上到下，能不用就不用）
 
@@ -62,6 +65,9 @@ upstream/main   ←  只镜像官方 milind-soni/OpenMausBot，永远 clean
 git fetch upstream
 git checkout main
 git rebase upstream/main          # 有冲突逐个解决，git rerere 会自动重放
+# 如果 main rebase 成功了，把原有的 feat/* 分支也 rebase 到新 main：
+git checkout feat/xxx
+git rebase main                   # 解决冲突后继续
 pnpm install                      # 依赖可能变了
 pnpm typecheck                    # 或 pnpm build
 pnpm test                         # 至少跑冒烟
@@ -89,3 +95,17 @@ pnpm test                         # 至少跑冒烟
 
 - [ ] 若皮肤改动会持续膨胀，优先投入：**给官方提「外置皮肤 / CSS 注入」PR**，做成后加皮肤永远零冲突。
 - [ ] 确认现有插件需求能否 100% 落到 L0（skill / MCP / 自定义引擎）。
+
+## 9. 开发环境与推送（速查）
+
+- **远程仓库**：`upstream` = `milind-soni/OpenMausBot`（官方）；`origin` = `tm7209519-glitch/GabBot`（本 fork）。
+- **Git 身份**（本仓库已配置）：`Modelra` / `tm7209519-glitch@users.noreply.github.com`。
+- **代理**：本地代理端口 **6789**。推/拉到 GitHub 必须显式走代理——全局 git 配置里的 `127.0.0.1:52468` 和环境变量里的 `51287` 都是死的，不要依赖。
+
+  ```bash
+  git -c http.proxy=http://127.0.0.1:6789 -c https.proxy=http://127.0.0.1:6789 push origin <branch>
+  git -c http.proxy=http://127.0.0.1:6789 -c https.proxy=http://127.0.0.1:6789 fetch upstream
+  ```
+
+- **GitHub connector 只读**：连接后只有读权限，写操作（fork / 建仓 / push_files / 改文件）均 403。推代码必须用本地 git + 代理，不能走 connector。
+- **浅克隆**：当前仓库是 `--depth=1` 浅克隆。跟进上游更新做 rebase 够用；如需提 PR 或查看完整历史，先 `git fetch upstream --unshallow`。
